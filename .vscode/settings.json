@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "doubly_linked_list.C": "cpp",
+        "string.h": "c",
+        "stddef.h": "c",
+        "linked_list.h": "c"
+    }
+}
