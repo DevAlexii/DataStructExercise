@@ -3,18 +3,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define max_collision_count 2
-#define max_hashmap_size 1000
+#define max_collision_count 1
+#define max_hashmap_size 100
 
-size_t djb33x_hash(const char* key) {
-    size_t hash = 5381;
-    size_t key_len = strlen(key);
+size_t fnv1a_hash(const char* key) {
+    const size_t fnv_offset_basis = 14695981039346656037U;
+    const size_t fnv_prime = 1099511628211U;
 
-    for (size_t i = 0; i < key_len; i++) {
-        hash = ((hash << 5) + hash) ^ key[i];
+    size_t hash = fnv_offset_basis;
+
+    while (*key != '\0') {
+        hash ^= (size_t)(*key++);
+        hash *= fnv_prime;
     }
+
     return hash;
 }
+
 
 struct data {
     const char* key;
@@ -79,7 +84,7 @@ struct dictionary* dictionary_init(size_t initial_size) {
     return dict;
 }
 
-void dictionary_resize(struct dictionary** dict) {
+int dictionary_resize(struct dictionary** dict) {
     printf("------------------------------------------\n");
     printf("Need a resize 'cause collision count reached the max:\n");
     printf("Try resizing....\n");
@@ -88,20 +93,20 @@ void dictionary_resize(struct dictionary** dict) {
 
     if (new_size > max_hashmap_size) {
         printf("Resize failing!! Dictionary is at its max size!\n");
-        return;
+        return 0;
     }
 
     struct dictionary* new_dict = malloc(sizeof(struct dictionary));
     if (!new_dict) {
         printf("Dictionary Resize Malloc Error\n");
-        return;
+        return 0;
     }
 
     new_dict->sets = malloc(new_size * sizeof(struct set));
     if (!new_dict->sets) {
         printf("Sets Malloc Error\n");
         free(new_dict);
-        return;
+        return 0;
     }
 
     new_dict->size = new_size;
@@ -116,7 +121,8 @@ void dictionary_resize(struct dictionary** dict) {
 
     for (size_t i = 0; i < (*dict)->size; i++) {
         if ((*dict)->sets[i].data.key_len != 0) {
-            size_t new_index = djb33x_hash((*dict)->sets[i].data.key) % new_size;
+            size_t new_index = fnv1a_hash((*dict)->sets[i]
+            .data.key) % new_size;
             new_dict->sets[new_index] = (*dict)->sets[i];
             new_dict->sets[new_index].data.collision_count = 0;
         }
@@ -129,11 +135,13 @@ void dictionary_resize(struct dictionary** dict) {
     *dict = new_dict;
 
     print_dictionary(*dict);
+
+    return 1;
 }
 
 int dictionary_add(struct dictionary** dict, const char* key, size_t item_size, void* value) {
     printf("------------------------------------------\n");
-    size_t index = djb33x_hash(key) % (*dict)->size;
+    size_t index = fnv1a_hash(key) % (*dict)->size;
 
     if (item_size == sizeof(int)) {
         printf("Try To add key: %s with value: %d at index: %zu\n", key, *(int*)value, index);
@@ -160,13 +168,15 @@ int dictionary_add(struct dictionary** dict, const char* key, size_t item_size, 
     print_dictionary(*dict);
 
     if ((*dict)->sets[index].data.collision_count >= max_collision_count) {
-        dictionary_resize(dict);
+        if(dictionary_resize(dict)==1){
+            dictionary_add(dict,key,item_size,value);
+        }
     }
     return 0;
 }
 
 int main() {
-    size_t initial_size = 10;
+    size_t initial_size = 1;
     struct dictionary* my_dictionary;
     printf("Dictionary Initialize..\n");
     my_dictionary = dictionary_init(initial_size);
@@ -178,8 +188,6 @@ int main() {
     dictionary_add(&my_dictionary, "Stamina", sizeof(int), &start_stamina);
 
     dictionary_add(&my_dictionary, "World", sizeof(char), "Earth");
-    dictionary_add(&my_dictionary, "Hello", sizeof(char), "Hola");
-    dictionary_add(&my_dictionary, "Hello", sizeof(char), "Hola");
     dictionary_add(&my_dictionary, "Hello", sizeof(char), "Hola");
 
 
